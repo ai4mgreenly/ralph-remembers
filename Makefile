@@ -68,7 +68,7 @@ else
 endif
 
 # Linker libraries
-LDLIBS =
+LDLIBS = -ltalloc
 
 # Function/data sections for gc-sections
 SECTION_FLAGS = -ffunction-sections -fdata-sections

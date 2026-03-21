@@ -4,7 +4,7 @@
 #include "config/config.h"
 
 // Populate cfg with compiled-in defaults, then apply env var overrides.
-// Returns 0 on success, -1 on allocation failure.
-int fx_config_env_load(fx_config_t *cfg);
+// OOM calls PANIC(). Returns OK(NULL) on success, ERR() on failure.
+res_t fx_cfg_env_load(fx_cfg_t *cfg);
 
 #endif

@@ -5,7 +5,8 @@
 
 // Apply CLI argument overrides onto cfg.
 // Recognises --watch, --db, --socket, --help / -h.
-// Returns 0 on success, nonzero on unknown flag or missing value.
-int fx_config_args_apply(fx_config_t *cfg, int argc, const char **argv);
+// Returns OK(NULL) on success, ERR() on unknown flag or missing value.
+// OOM calls PANIC().
+res_t fx_cfg_args_apply(fx_cfg_t *cfg, int argc, const char **argv);
 
 #endif

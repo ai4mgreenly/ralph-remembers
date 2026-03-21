@@ -1,9 +1,11 @@
 #include "config/config.h"
+#include "result.h"
+
+#include <talloc.h>
 
 #include <check.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 #include <sys/types.h>
 
@@ -14,7 +16,10 @@ START_TEST(test_config_defaults) {
     unsetenv("FANDEX_DB_PATH");
     unsetenv("FANDEX_SOCKET_PATH");
 
-    fx_config_t *cfg = fx_config_load(1, no_args);
+    TALLOC_CTX *ctx = talloc_new(NULL);
+    res_t r = fx_cfg_load(ctx, 1, no_args);
+    ck_assert(!r.is_err);
+    fx_cfg_t *cfg = r.ok;
     ck_assert_ptr_nonnull(cfg);
 
     const char *home = getenv("HOME");
@@ -30,7 +35,7 @@ START_TEST(test_config_defaults) {
     (void)snprintf(expected, sizeof(expected), "/run/user/%u/fandex/fandex.sock", uid);
     ck_assert_str_eq(cfg->socket_path, expected);
 
-    fx_config_free(cfg);
+    talloc_free(ctx);
 }
 END_TEST
 
@@ -39,14 +44,17 @@ START_TEST(test_config_env_overrides) {
     setenv("FANDEX_DB_PATH", "/tmp/test.db", 1);
     setenv("FANDEX_SOCKET_PATH", "/tmp/test.sock", 1);
 
-    fx_config_t *cfg = fx_config_load(1, no_args);
+    TALLOC_CTX *ctx = talloc_new(NULL);
+    res_t r = fx_cfg_load(ctx, 1, no_args);
+    ck_assert(!r.is_err);
+    fx_cfg_t *cfg = r.ok;
     ck_assert_ptr_nonnull(cfg);
 
     ck_assert_str_eq(cfg->watch_path, "/mnt/data/projects");
     ck_assert_str_eq(cfg->db_path, "/tmp/test.db");
     ck_assert_str_eq(cfg->socket_path, "/tmp/test.sock");
 
-    fx_config_free(cfg);
+    talloc_free(ctx);
 
     unsetenv("FANDEX_WATCH_PATH");
     unsetenv("FANDEX_DB_PATH");
@@ -59,7 +67,10 @@ START_TEST(test_config_partial_overrides) {
     setenv("FANDEX_DB_PATH", "/custom/path.db", 1);
     unsetenv("FANDEX_SOCKET_PATH");
 
-    fx_config_t *cfg = fx_config_load(1, no_args);
+    TALLOC_CTX *ctx = talloc_new(NULL);
+    res_t r = fx_cfg_load(ctx, 1, no_args);
+    ck_assert(!r.is_err);
+    fx_cfg_t *cfg = r.ok;
     ck_assert_ptr_nonnull(cfg);
 
     const char *home = getenv("HOME");
@@ -74,7 +85,7 @@ START_TEST(test_config_partial_overrides) {
     (void)snprintf(expected, sizeof(expected), "/run/user/%u/fandex/fandex.sock", uid);
     ck_assert_str_eq(cfg->socket_path, expected);
 
-    fx_config_free(cfg);
+    talloc_free(ctx);
 
     unsetenv("FANDEX_DB_PATH");
 }
@@ -86,14 +97,17 @@ START_TEST(test_config_args_win_over_env) {
     setenv("FANDEX_SOCKET_PATH", "/env/sock", 1);
 
     const char *args[] = {"fandex", "--watch", "/arg/watch", "--db", "/arg/db.db", "--socket", "/arg/sock"};
-    fx_config_t *cfg = fx_config_load(7, args);
+    TALLOC_CTX *ctx = talloc_new(NULL);
+    res_t r = fx_cfg_load(ctx, 7, args);
+    ck_assert(!r.is_err);
+    fx_cfg_t *cfg = r.ok;
     ck_assert_ptr_nonnull(cfg);
 
     ck_assert_str_eq(cfg->watch_path, "/arg/watch");
     ck_assert_str_eq(cfg->db_path, "/arg/db.db");
     ck_assert_str_eq(cfg->socket_path, "/arg/sock");
 
-    fx_config_free(cfg);
+    talloc_free(ctx);
 
     unsetenv("FANDEX_WATCH_PATH");
     unsetenv("FANDEX_DB_PATH");
@@ -107,14 +121,17 @@ START_TEST(test_config_args_win_over_defaults) {
     unsetenv("FANDEX_SOCKET_PATH");
 
     const char *args[] = {"fandex", "--watch", "/arg/watch", "--db", "/arg/db.db", "--socket", "/arg/sock"};
-    fx_config_t *cfg = fx_config_load(7, args);
+    TALLOC_CTX *ctx = talloc_new(NULL);
+    res_t r = fx_cfg_load(ctx, 7, args);
+    ck_assert(!r.is_err);
+    fx_cfg_t *cfg = r.ok;
     ck_assert_ptr_nonnull(cfg);
 
     ck_assert_str_eq(cfg->watch_path, "/arg/watch");
     ck_assert_str_eq(cfg->db_path, "/arg/db.db");
     ck_assert_str_eq(cfg->socket_path, "/arg/sock");
 
-    fx_config_free(cfg);
+    talloc_free(ctx);
 }
 END_TEST
 

@@ -1,11 +1,13 @@
 #include "config/config_env.h"
 #include "config/config.h"
 #include "config/defaults.h"
+#include "result.h"
+
+#include <talloc.h>
 
 #include <check.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 #include <sys/types.h>
 
@@ -19,27 +21,26 @@ static void clear_env(void)
 START_TEST(test_env_no_vars) {
     clear_env();
 
-    fx_config_t cfg = { 0 };
-    int ret = fx_config_env_load(&cfg);
-    ck_assert_int_eq(ret, 0);
+    TALLOC_CTX *ctx = talloc_new(NULL);
+    fx_cfg_t *cfg = talloc_zero(ctx, fx_cfg_t);
+    res_t r = fx_cfg_env_load(cfg);
+    ck_assert(!r.is_err);
 
     const char *home = getenv("HOME");
     uid_t uid = getuid();
     char expected[512];
 
     (void)snprintf(expected, sizeof(expected), "%s%s", home, FX_DEFAULT_WATCH_PATH_SUFFIX);
-    ck_assert_str_eq(cfg.watch_path, expected);
+    ck_assert_str_eq(cfg->watch_path, expected);
 
     (void)snprintf(expected, sizeof(expected), "%s%s", home, FX_DEFAULT_DB_PATH_SUFFIX);
-    ck_assert_str_eq(cfg.db_path, expected);
+    ck_assert_str_eq(cfg->db_path, expected);
 
     (void)snprintf(expected, sizeof(expected), "/run/user/%u%s", (unsigned)uid,
                    FX_DEFAULT_SOCKET_PATH_SUFFIX);
-    ck_assert_str_eq(cfg.socket_path, expected);
+    ck_assert_str_eq(cfg->socket_path, expected);
 
-    free(cfg.watch_path);
-    free(cfg.db_path);
-    free(cfg.socket_path);
+    talloc_free(ctx);
 }
 END_TEST
 
@@ -47,26 +48,25 @@ START_TEST(test_env_watch_path) {
     clear_env();
     setenv("FANDEX_WATCH_PATH", "/tmp/watch", 1);
 
-    fx_config_t cfg = { 0 };
-    int ret = fx_config_env_load(&cfg);
-    ck_assert_int_eq(ret, 0);
+    TALLOC_CTX *ctx = talloc_new(NULL);
+    fx_cfg_t *cfg = talloc_zero(ctx, fx_cfg_t);
+    res_t r = fx_cfg_env_load(cfg);
+    ck_assert(!r.is_err);
 
-    ck_assert_str_eq(cfg.watch_path, "/tmp/watch");
+    ck_assert_str_eq(cfg->watch_path, "/tmp/watch");
 
     const char *home = getenv("HOME");
     char expected[512];
 
     (void)snprintf(expected, sizeof(expected), "%s%s", home, FX_DEFAULT_DB_PATH_SUFFIX);
-    ck_assert_str_eq(cfg.db_path, expected);
+    ck_assert_str_eq(cfg->db_path, expected);
 
     uid_t uid = getuid();
     (void)snprintf(expected, sizeof(expected), "/run/user/%u%s", (unsigned)uid,
                    FX_DEFAULT_SOCKET_PATH_SUFFIX);
-    ck_assert_str_eq(cfg.socket_path, expected);
+    ck_assert_str_eq(cfg->socket_path, expected);
 
-    free(cfg.watch_path);
-    free(cfg.db_path);
-    free(cfg.socket_path);
+    talloc_free(ctx);
     clear_env();
 }
 END_TEST
@@ -75,26 +75,25 @@ START_TEST(test_env_db_path) {
     clear_env();
     setenv("FANDEX_DB_PATH", "/tmp/test.db", 1);
 
-    fx_config_t cfg = { 0 };
-    int ret = fx_config_env_load(&cfg);
-    ck_assert_int_eq(ret, 0);
+    TALLOC_CTX *ctx = talloc_new(NULL);
+    fx_cfg_t *cfg = talloc_zero(ctx, fx_cfg_t);
+    res_t r = fx_cfg_env_load(cfg);
+    ck_assert(!r.is_err);
 
-    ck_assert_str_eq(cfg.db_path, "/tmp/test.db");
+    ck_assert_str_eq(cfg->db_path, "/tmp/test.db");
 
     const char *home = getenv("HOME");
     char expected[512];
 
     (void)snprintf(expected, sizeof(expected), "%s%s", home, FX_DEFAULT_WATCH_PATH_SUFFIX);
-    ck_assert_str_eq(cfg.watch_path, expected);
+    ck_assert_str_eq(cfg->watch_path, expected);
 
     uid_t uid = getuid();
     (void)snprintf(expected, sizeof(expected), "/run/user/%u%s", (unsigned)uid,
                    FX_DEFAULT_SOCKET_PATH_SUFFIX);
-    ck_assert_str_eq(cfg.socket_path, expected);
+    ck_assert_str_eq(cfg->socket_path, expected);
 
-    free(cfg.watch_path);
-    free(cfg.db_path);
-    free(cfg.socket_path);
+    talloc_free(ctx);
     clear_env();
 }
 END_TEST
@@ -103,24 +102,23 @@ START_TEST(test_env_socket_path) {
     clear_env();
     setenv("FANDEX_SOCKET_PATH", "/tmp/test.sock", 1);
 
-    fx_config_t cfg = { 0 };
-    int ret = fx_config_env_load(&cfg);
-    ck_assert_int_eq(ret, 0);
+    TALLOC_CTX *ctx = talloc_new(NULL);
+    fx_cfg_t *cfg = talloc_zero(ctx, fx_cfg_t);
+    res_t r = fx_cfg_env_load(cfg);
+    ck_assert(!r.is_err);
 
-    ck_assert_str_eq(cfg.socket_path, "/tmp/test.sock");
+    ck_assert_str_eq(cfg->socket_path, "/tmp/test.sock");
 
     const char *home = getenv("HOME");
     char expected[512];
 
     (void)snprintf(expected, sizeof(expected), "%s%s", home, FX_DEFAULT_WATCH_PATH_SUFFIX);
-    ck_assert_str_eq(cfg.watch_path, expected);
+    ck_assert_str_eq(cfg->watch_path, expected);
 
     (void)snprintf(expected, sizeof(expected), "%s%s", home, FX_DEFAULT_DB_PATH_SUFFIX);
-    ck_assert_str_eq(cfg.db_path, expected);
+    ck_assert_str_eq(cfg->db_path, expected);
 
-    free(cfg.watch_path);
-    free(cfg.db_path);
-    free(cfg.socket_path);
+    talloc_free(ctx);
     clear_env();
 }
 END_TEST
@@ -130,17 +128,16 @@ START_TEST(test_env_all_three) {
     setenv("FANDEX_DB_PATH",     "/tmp/d", 1);
     setenv("FANDEX_SOCKET_PATH", "/tmp/s", 1);
 
-    fx_config_t cfg = { 0 };
-    int ret = fx_config_env_load(&cfg);
-    ck_assert_int_eq(ret, 0);
+    TALLOC_CTX *ctx = talloc_new(NULL);
+    fx_cfg_t *cfg = talloc_zero(ctx, fx_cfg_t);
+    res_t r = fx_cfg_env_load(cfg);
+    ck_assert(!r.is_err);
 
-    ck_assert_str_eq(cfg.watch_path,  "/tmp/w");
-    ck_assert_str_eq(cfg.db_path,     "/tmp/d");
-    ck_assert_str_eq(cfg.socket_path, "/tmp/s");
+    ck_assert_str_eq(cfg->watch_path,  "/tmp/w");
+    ck_assert_str_eq(cfg->db_path,     "/tmp/d");
+    ck_assert_str_eq(cfg->socket_path, "/tmp/s");
 
-    free(cfg.watch_path);
-    free(cfg.db_path);
-    free(cfg.socket_path);
+    talloc_free(ctx);
     clear_env();
 }
 END_TEST

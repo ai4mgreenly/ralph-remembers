@@ -1,39 +1,35 @@
 #include "config/config.h"
 #include "config/config_env.h"
 #include "config/config_args.h"
+#include "result.h"
 
-#include <stdlib.h>
+#include <talloc.h>
 
 #include "poison.h"
 
-fx_config_t *fx_config_load(int argc, const char **argv)
+res_t fx_cfg_load(TALLOC_CTX *ctx, int argc, const char **argv)
 {
-    fx_config_t *cfg = calloc(1, sizeof(*cfg));
+    fx_cfg_t *cfg = talloc_zero(ctx, fx_cfg_t);
     if (!cfg) {
-        return NULL;
+        PANIC("Out of memory");
     }
 
-    if (fx_config_env_load(cfg) != 0) {
-        fx_config_free(cfg);
-        return NULL;
+    res_t r = fx_cfg_env_load(cfg);
+    if (is_err(&r)) {
+        talloc_free(cfg);
+        return r;
     }
 
-    if (fx_config_args_apply(cfg, argc, argv) != 0) {
-        fx_config_free(cfg);
-        return NULL;
+    r = fx_cfg_args_apply(cfg, argc, argv);
+    if (is_err(&r)) {
+        talloc_free(cfg);
+        return r;
     }
 
-    return cfg;
+    return OK(cfg);
 }
 
-void fx_config_free(fx_config_t *cfg)
+void fx_cfg_free(fx_cfg_t *cfg)
 {
-    if (!cfg) {
-        return;
-    }
-
-    free(cfg->watch_path);
-    free(cfg->db_path);
-    free(cfg->socket_path);
-    free(cfg);
+    talloc_free(cfg);
 }
