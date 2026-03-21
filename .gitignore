@@ -1,0 +1,17 @@
+# Build artifacts
+build/
+build-*/
+/bin/
+
+# Reports
+reports/
+
+# Editor / OS
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Data
+.data/

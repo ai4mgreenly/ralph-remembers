@@ -1,0 +1,118 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+#
+# harness/filesize - File size check
+#
+# Runs make check-filesize, parses oversized files, outputs JSON summary.
+# No fix functionality - check only.
+#
+
+require 'json'
+require 'optparse'
+require 'fileutils'
+
+# Run command and capture output, suppressing all output
+def run_cmd(cmd, env: {})
+  stdout_str = ''
+  status = nil
+
+  # Merge environment variables
+  full_env = ENV.to_h.merge(env)
+
+  IO.popen(full_env, cmd, err: [:child, :out]) do |io|
+    stdout_str = io.read
+  end
+  status = $?
+
+  [status.exitstatus, stdout_str]
+end
+
+# Parse make filesize output to extract oversized files
+# Pattern: 🔴 path/to/file.c: 18000 bytes (exceeds 16000)
+def parse_failures(output)
+  failures = []
+  pattern = /^🔴\s+(\S+):\s+(\d+)\s+bytes\s+\(exceeds\s+(\d+)\)/
+
+  output.scan(pattern) do |file, bytes, limit|
+    failures << {
+      file: file,
+      bytes: bytes.to_i,
+      limit: limit.to_i
+    }
+  end
+
+  failures
+end
+
+# Format failure as 'file N bytes (limit M)' string
+def format_failure_item(failure)
+  "#{failure[:file]} #{failure[:bytes]} bytes (limit #{failure[:limit]})"
+end
+
+def main
+  options = {}
+
+  OptionParser.new do |opts|
+    opts.banner = 'Usage: run.rb [options]'
+    opts.on('--file FILE', 'Filter results to specific file') do |f|
+      options[:file] = f
+    end
+  end.parse!
+
+  # Change to project root (3 levels up from harness/filesize/)
+  script_dir = File.dirname(File.realpath(__FILE__))
+  project_root = File.expand_path('../../..', script_dir)
+  Dir.chdir(project_root)
+
+  # Check file existence early if --file is specified
+  if options[:file]
+    target_file = options[:file]
+    unless File.exist?(target_file)
+      puts JSON.generate(ok: false, items: ["#{target_file}: file not found"])
+      exit 1
+    end
+  end
+
+  # Run file size check
+  exit_code, output = run_cmd(['make', 'check-filesize'])
+
+  if exit_code == 0
+    puts JSON.generate(ok: true)
+    exit 0
+  end
+
+  # Parse failures
+  failures = parse_failures(output)
+
+  # Filter to target file if --file is specified
+  if options[:file]
+    target_file = options[:file]
+    failures = failures.select { |f| f[:file] == target_file }
+
+    if failures.empty?
+      # File exists and is not oversized
+      puts JSON.generate(ok: true)
+      exit 0
+    end
+  end
+
+  if failures.empty?
+    # Check failed but couldn't parse failures
+    puts JSON.generate(ok: false, items: [])
+    exit 1
+  end
+
+  # Format and output failures
+  items = failures.map { |f| format_failure_item(f) }
+  puts JSON.generate(ok: false, items: items)
+  exit 1
+end
+
+if __FILE__ == $PROGRAM_NAME
+  begin
+    main
+  rescue Interrupt
+    exit 130
+  end
+end

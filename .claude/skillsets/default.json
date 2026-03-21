@@ -1,0 +1,10 @@
+{
+  "preload": [
+    "jj",
+    "align",
+    "scratch"
+  ],
+  "advertise": [
+    {"skill": "harness", "description": "Quality check harness scripts and development inner loop"}
+  ]
+}

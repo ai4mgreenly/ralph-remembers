@@ -1,0 +1,171 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+#
+# harness/complexity - Complexity check
+#
+# Runs make check-complexity, parses 🟢/🔴 output, outputs JSON summary.
+# No fix functionality - check only.
+#
+
+require 'json'
+require 'optparse'
+require 'fileutils'
+require 'set'
+
+# Run command and capture output, suppressing all output
+def run_cmd(cmd, env: {})
+  stdout_str = ''
+  status = nil
+
+  # Merge environment variables
+  full_env = ENV.to_h.merge(env)
+
+  IO.popen(full_env, cmd, err: [:child, :out]) do |io|
+    stdout_str = io.read
+  end
+  status = $?
+
+  [status.exitstatus, stdout_str]
+end
+
+# Run make check-complexity
+def run_make_complexity(file: nil)
+  cmd = ['make', 'check-complexity']
+  cmd << "FILE=#{file}" if file
+
+  exit_code, output = run_cmd(cmd)
+
+  [exit_code == 0, output]
+end
+
+# Parse make check-complexity output to extract failures
+def parse_failures(output)
+  failures = []
+  seen = Set.new
+
+  # Two output formats:
+  # 1. With FILE=: 🔴 file.c:123: function (complexity N)
+  #                🔴 file.c: nesting depth N (max M)
+  # 2. Without FILE=: 🔴 file.c (summary only)
+
+  complexity_pattern = /^🔴 ([^:]+):(\d+): (.+) \(complexity (\d+)\)$/
+  nesting_pattern = /^🔴 ([^:]+): nesting depth (\d+) \(max \d+\)$/
+  summary_pattern = /^🔴 ([^\s]+\.c)$/
+
+  output.each_line do |line|
+    line = line.strip
+
+    if line =~ complexity_pattern
+      file, line_num, function, score = $1, $2, $3, $4
+      key = "#{file}:#{function}"
+
+      unless seen.include?(key)
+        seen.add(key)
+        failures << {
+          file: file,
+          line: line_num,
+          function: function,
+          score: score.to_i,
+          issue_type: 'complexity'
+        }
+      end
+    elsif line =~ nesting_pattern
+      file, depth = $1, $2
+      key = "#{file}:nesting"
+
+      unless seen.include?(key)
+        seen.add(key)
+        failures << {
+          file: file,
+          line: '1',
+          function: nil,
+          score: depth.to_i,
+          issue_type: 'nesting'
+        }
+      end
+    elsif line =~ summary_pattern
+      file = $1
+
+      unless seen.include?(file)
+        seen.add(file)
+        failures << {
+          file: file,
+          line: '1',
+          function: nil,
+          score: nil,
+          issue_type: 'summary'
+        }
+      end
+    end
+  end
+
+  failures
+end
+
+# Format failure item based on issue type
+def format_failure_item(failure)
+  case failure[:issue_type]
+  when 'complexity'
+    "#{failure[:file]}:#{failure[:line]}: #{failure[:function]} (complexity #{failure[:score]})"
+  when 'nesting'
+    "#{failure[:file]}: nesting depth #{failure[:score]}"
+  else
+    "#{failure[:file]}: complexity/nesting threshold exceeded"
+  end
+end
+
+def main
+  options = {}
+
+  OptionParser.new do |opts|
+    opts.banner = 'Usage: check-complexity [options]'
+    opts.on('--file FILE', 'Check specific file') do |f|
+      options[:file] = f
+    end
+  end.parse!
+
+  # Change to project root (3 levels up from harness/complexity/)
+  script_dir = File.dirname(File.realpath(__FILE__))
+  project_root = File.expand_path('../../..', script_dir)
+  Dir.chdir(project_root)
+
+  # Check file existence early if --file is specified
+  if options[:file]
+    target_file = options[:file]
+    unless File.exist?(target_file)
+      puts JSON.generate(ok: false, items: ["#{target_file}: file not found"])
+      exit 1
+    end
+  end
+
+  # Run complexity check
+  success, output = run_make_complexity(file: options[:file])
+
+  if success
+    puts JSON.generate(ok: true)
+    exit 0
+  end
+
+  # Parse failures
+  failures = parse_failures(output)
+
+  if failures.empty?
+    # Check failed but couldn't parse failures - shouldn't happen
+    puts JSON.generate(ok: false, items: ['complexity check failed (unknown error)'])
+    exit 1
+  end
+
+  # Format and output failures
+  items = failures.map { |f| format_failure_item(f) }
+  puts JSON.generate(ok: false, items: items)
+  exit 1
+end
+
+if __FILE__ == $PROGRAM_NAME
+  begin
+    main
+  rescue Interrupt
+    exit 130
+  end
+end

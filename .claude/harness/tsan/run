@@ -1,0 +1,95 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'json'
+require 'optparse'
+
+# Run command and capture output
+def run_cmd(cmd)
+  output = `#{cmd} 2>&1`
+  [$?.exitstatus, output]
+end
+
+# Convert binary path to source path
+# build-tsan/tests/unit/foo_test -> tests/unit/foo_test.c
+def binary_to_source(binary_path)
+  # Remove build-tsan/ prefix and add .c suffix
+  source = binary_path.sub(%r{^build-tsan/}, '') + '.c'
+  source
+end
+
+# Parse failing binaries from bulk mode output
+def parse_failing_binaries(output)
+  binaries = []
+  output.each_line do |line|
+    line = line.strip
+    next unless line.start_with?('🔴 ')
+    path = line[2..].strip
+    # Only include paths that look like test binaries
+    binaries << path if path.start_with?('build-tsan/')
+  end
+  binaries
+end
+
+def main
+  options = {}
+  OptionParser.new do |opts|
+    opts.banner = 'Usage: run [options]'
+    opts.on('--file FILE', 'Run check on specific test binary') do |file|
+      options[:file] = file
+    end
+  end.parse!
+
+  if options[:file]
+    # Single file mode
+    exit_code, output = run_cmd("make check-tsan FILE=#{options[:file]}")
+    if exit_code == 0
+      puts JSON.generate(ok: true)
+      exit 0
+    end
+    # Each 🔴 line becomes an item (strip emoji prefix)
+    items = []
+    output.each_line do |line|
+      line = line.strip
+      next unless line.start_with?('🔴 ')
+      items << line[2..].strip
+    end
+    if items.empty?
+      items = ["#{options[:file]}: check failed but no error details"]
+    end
+    puts JSON.generate(ok: false, items: items)
+    exit 1
+  end
+
+  # Bulk mode
+  exit_code, output = run_cmd('make check-tsan')
+  if exit_code == 0
+    puts JSON.generate(ok: true)
+    exit 0
+  end
+
+  # Check for pre-existing failures
+  if output.include?('Pre-existing build failures') || output.include?('Pre-existing test failures')
+    puts JSON.generate(ok: false, items: ['Pre-existing failures - fix before checking for races'])
+    exit 1
+  end
+
+  # Get list of failing binaries and convert to source paths
+  failing = parse_failing_binaries(output)
+  if failing.empty?
+    puts JSON.generate(ok: false, items: ['Infrastructure failure'])
+    exit 1
+  end
+
+  sources = failing.map { |b| binary_to_source(b) }
+  puts JSON.generate(ok: false, items: sources)
+  exit 1
+end
+
+if __FILE__ == $PROGRAM_NAME
+  begin
+    main
+  rescue Interrupt
+    exit 130
+  end
+end

@@ -1,0 +1,132 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+#
+# harness/unit - Run unit tests
+#
+# Runs unit tests, parses 🔴 output, outputs JSON summary.
+# No fix functionality - check only.
+#
+
+require 'json'
+require 'optparse'
+require 'fileutils'
+require 'pathname'
+
+# Run command and capture output, suppressing all output
+def run_cmd(cmd, env: {}, timeout: nil)
+  stdout_str = ''
+  status = nil
+
+  # Merge environment variables
+  full_env = ENV.to_h.merge(env)
+
+  IO.popen(full_env, cmd, err: [:child, :out]) do |io|
+    stdout_str = io.read
+  end
+  status = $?
+
+  [status.exitstatus, stdout_str]
+end
+
+# Run unit tests
+def run_unit_tests
+  exit_code, output = run_cmd(
+    ['make', 'check-unit'],
+    timeout: 1800
+  )
+  [exit_code == 0, output]
+end
+
+# Parse emoji markers to find failed tests
+# Pattern: 🔴 build/tests/unit/something_test
+def parse_failed_tests_from_output(output)
+  failed_tests = []
+  failed_pattern = /🔴\s+(.+)/
+
+  output.each_line do |line|
+    match = failed_pattern.match(line)
+    if match
+      test_path = match[1].strip
+      failed_tests << test_path
+    end
+  end
+
+  failed_tests.uniq
+end
+
+# Filter failures to only those related to the source file
+def filter_failures_by_file(failures, filter_file)
+  file_parts = File.basename(filter_file, '.*').split('_')
+
+  failures.select do |failure|
+    test_name = File.basename(failure)
+    file_parts.any? { |part| part.length > 2 && test_name.include?(part) }
+  end
+end
+
+def main
+  options = {}
+
+  OptionParser.new do |opts|
+    opts.banner = 'Usage: run.rb [options]'
+    opts.on('--file FILE', 'Source file to filter failures to') do |f|
+      options[:file] = f
+    end
+  end.parse!
+
+  # Change to project root (3 levels up from harness/unit/)
+  script_dir = File.dirname(File.realpath(__FILE__))
+  project_root = File.expand_path('../../..', script_dir)
+  Dir.chdir(project_root)
+
+  if options[:file]
+    target_file = options[:file]
+
+    # Check if target file exists
+    unless File.exist?(target_file)
+      puts JSON.generate(ok: false, items: ["#{target_file}: file not found"])
+      exit 1
+    end
+  end
+
+  # Run unit tests
+  success, output = run_unit_tests
+
+  if success
+    puts JSON.generate(ok: true)
+    exit 0
+  end
+
+  # Parse failed tests from emoji markers
+  failed_tests = parse_failed_tests_from_output(output)
+
+  if failed_tests.empty?
+    # Tests failed but couldn't parse failures
+    puts JSON.generate(ok: false, items: ['Unit tests failed but no failures could be parsed'])
+    exit 1
+  end
+
+  # Filter to target file if specified
+  if options[:file]
+    failed_tests = filter_failures_by_file(failed_tests, options[:file])
+
+    if failed_tests.empty?
+      # Tests failed but none are related to target file
+      puts JSON.generate(ok: true)
+      exit 0
+    end
+  end
+
+  # Return failed test paths as items
+  puts JSON.generate(ok: false, items: failed_tests)
+  exit 1
+end
+
+if __FILE__ == $PROGRAM_NAME
+  begin
+    main
+  rescue Interrupt
+    exit 130
+  end
+end
