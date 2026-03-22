@@ -14,6 +14,7 @@ static void clear_env(void)
     unsetenv("FANDEX_WATCH_PATH");
     unsetenv("FANDEX_DB_PATH");
     unsetenv("FANDEX_SOCKET_PATH");
+    unsetenv("XDG_RUNTIME_DIR");
 }
 
 START_TEST(test_env_no_vars) {
@@ -121,6 +122,24 @@ START_TEST(test_env_socket_path) {
 }
 END_TEST
 
+START_TEST(test_env_xdg_runtime_dir) {
+    clear_env();
+    setenv("XDG_RUNTIME_DIR", "/custom/dir", 1);
+
+    TALLOC_CTX *ctx = talloc_new(NULL);
+    fx_cfg_t *cfg = talloc_zero(ctx, fx_cfg_t);
+    res_t r = fx_cfg_env_load(cfg);
+    ck_assert(!r.is_err);
+
+    char expected[512];
+    (void)snprintf(expected, sizeof(expected), "/custom/dir%s", FX_DEFAULT_SOCKET_PATH_SUFFIX);
+    ck_assert_str_eq(cfg->socket_path, expected);
+
+    talloc_free(ctx);
+    clear_env();
+}
+END_TEST
+
 START_TEST(test_env_all_three) {
     setenv("FANDEX_WATCH_PATH", "/tmp/w", 1);
     setenv("FANDEX_DB_PATH", "/tmp/d", 1);
@@ -149,6 +168,7 @@ static Suite *config_env_suite(void)
     tcase_add_test(tc, test_env_watch_path);
     tcase_add_test(tc, test_env_db_path);
     tcase_add_test(tc, test_env_socket_path);
+    tcase_add_test(tc, test_env_xdg_runtime_dir);
     tcase_add_test(tc, test_env_all_three);
     suite_add_tcase(s, tc);
 

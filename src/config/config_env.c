@@ -40,9 +40,15 @@ res_t fx_cfg_env_load(fx_cfg_t *cfg)
     if (sock_env) {
         cfg->socket_path = talloc_strdup(cfg, sock_env);
     } else {
-        uid_t uid = getuid();
-        cfg->socket_path = talloc_asprintf(cfg, "/run/user/%u%s", (unsigned)uid,
-                                           FX_DEFAULT_SOCKET_PATH_SUFFIX);
+        const char *xdg_runtime = getenv("XDG_RUNTIME_DIR");
+        if (xdg_runtime) {
+            cfg->socket_path = talloc_asprintf(cfg, "%s%s", xdg_runtime,
+                                               FX_DEFAULT_SOCKET_PATH_SUFFIX);
+        } else {
+            uid_t uid = getuid();
+            cfg->socket_path = talloc_asprintf(cfg, "/run/user/%u%s", (unsigned)uid,
+                                               FX_DEFAULT_SOCKET_PATH_SUFFIX);
+        }
     }
     if (!cfg->socket_path) {
         PANIC("Out of memory");
