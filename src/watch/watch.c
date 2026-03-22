@@ -81,7 +81,7 @@ res_t fx_watch_init(TALLOC_CTX *ctx, fx_log_t *log, const char *watch_path)
     uint64_t mask = FAN_CREATE | FAN_DELETE | FAN_MODIFY | FAN_MOVED_FROM | FAN_MOVED_TO;
     int32_t rc = posix_fanotify_mark_(
         fan_fd,
-        FAN_MARK_ADD | FAN_MARK_MOUNT,
+        FAN_MARK_ADD | FAN_MARK_FILESYSTEM,
         mask,
         AT_FDCWD,
         watch_path);
