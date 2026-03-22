@@ -78,13 +78,20 @@ res_t fx_watch_init(TALLOC_CTX *ctx, fx_log_t *log, const char *watch_path)
         return ERR(ctx, IO, "fanotify_init failed: %s", strerror(errno));
     }
 
+    int32_t dir_fd = posix_open_(watch_path, O_RDONLY | O_DIRECTORY);
+    if (dir_fd < 0) {
+        posix_close_(fan_fd);
+        return ERR(ctx, IO, "open watch_path failed: %s", strerror(errno));
+    }
+
     uint64_t mask = FAN_CREATE | FAN_DELETE | FAN_MODIFY | FAN_MOVED_FROM | FAN_MOVED_TO;
     int32_t rc = posix_fanotify_mark_(
         fan_fd,
         FAN_MARK_ADD | FAN_MARK_FILESYSTEM,
         mask,
-        AT_FDCWD,
-        watch_path);
+        dir_fd,
+        NULL);
+    posix_close_(dir_fd);
     if (rc < 0) {
         posix_close_(fan_fd);
         return ERR(ctx, IO, "fanotify_mark failed: %s", strerror(errno));

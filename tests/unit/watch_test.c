@@ -17,11 +17,13 @@
 
 static int32_t mock_fanotify_init_retval = -1;
 static int32_t mock_fanotify_mark_retval = -1;
+static int32_t mock_open_retval = 10;
 static int32_t mock_close_called_fd = -1;
 static int32_t mock_close_retval = 0;
 
 int32_t posix_fanotify_init_(uint32_t flags, uint32_t event_f_flags);
 int32_t posix_fanotify_mark_(int32_t fanotify_fd, uint32_t flags, uint64_t mask, int32_t dirfd, const char *pathname);
+int32_t posix_open_(const char *pathname, int32_t flags);
 int32_t posix_close_(int32_t fd);
 
 int32_t posix_fanotify_init_(uint32_t flags, uint32_t event_f_flags)
@@ -40,6 +42,13 @@ int32_t posix_fanotify_mark_(int32_t fanotify_fd, uint32_t flags, uint64_t mask,
     (void)dirfd;
     (void)pathname;
     return mock_fanotify_mark_retval;
+}
+
+int32_t posix_open_(const char *pathname, int32_t flags)
+{
+    (void)pathname;
+    (void)flags;
+    return mock_open_retval;
 }
 
 int32_t posix_close_(int32_t fd)
@@ -72,6 +81,7 @@ START_TEST(test_watch_init_success) {
     fx_log_t *log = fx_log_init(ctx, f, FX_LOG_DEBUG);
 
     mock_fanotify_init_retval = 42;
+    mock_open_retval = 10;
     mock_fanotify_mark_retval = 0;
     mock_close_called_fd = -1;
 
@@ -98,6 +108,7 @@ START_TEST(test_watch_init_fanotify_init_fails) {
     fx_log_t *log = fx_log_init(ctx, f, FX_LOG_DEBUG);
 
     mock_fanotify_init_retval = -1;
+    mock_open_retval = 10;
     mock_fanotify_mark_retval = 0;
     mock_close_called_fd = -1;
 
@@ -112,6 +123,32 @@ END_TEST
 
 // ---- fx_watch_init: fanotify_mark fails, closes fd ----
 
+// ---- fx_watch_init: open watch_path fails, closes fan_fd ----
+
+START_TEST(test_watch_init_open_fails) {
+    TALLOC_CTX *ctx = talloc_new(NULL);
+    FILE *f = tmpfile();
+    ck_assert_ptr_nonnull(f);
+
+    fx_log_t *log = fx_log_init(ctx, f, FX_LOG_DEBUG);
+
+    mock_fanotify_init_retval = 42;
+    mock_open_retval = -1;
+    mock_fanotify_mark_retval = 0;
+    mock_close_called_fd = -1;
+
+    res_t res = fx_watch_init(ctx, log, "/home/user/projects");
+    ck_assert(res.is_err);
+    ck_assert_int_eq((int)res.err->code, (int)ERR_IO);
+    ck_assert_int_eq(mock_close_called_fd, 42);
+
+    fclose(f);
+    talloc_free(ctx);
+}
+END_TEST
+
+// ---- fx_watch_init: fanotify_mark fails, closes dir fd then fan_fd ----
+
 START_TEST(test_watch_init_fanotify_mark_fails) {
     TALLOC_CTX *ctx = talloc_new(NULL);
     FILE *f = tmpfile();
@@ -120,6 +157,7 @@ START_TEST(test_watch_init_fanotify_mark_fails) {
     fx_log_t *log = fx_log_init(ctx, f, FX_LOG_DEBUG);
 
     mock_fanotify_init_retval = 77;
+    mock_open_retval = 10;
     mock_fanotify_mark_retval = -1;
     mock_close_called_fd = -1;
 
@@ -143,6 +181,7 @@ START_TEST(test_watch_free) {
     fx_log_t *log = fx_log_init(ctx, f, FX_LOG_DEBUG);
 
     mock_fanotify_init_retval = 55;
+    mock_open_retval = 10;
     mock_fanotify_mark_retval = 0;
     mock_close_called_fd = -1;
 
@@ -238,6 +277,7 @@ static Suite *watch_suite(void)
     TCase *tc_init = tcase_create("init");
     tcase_add_test(tc_init, test_watch_init_success);
     tcase_add_test(tc_init, test_watch_init_fanotify_init_fails);
+    tcase_add_test(tc_init, test_watch_init_open_fails);
     tcase_add_test(tc_init, test_watch_init_fanotify_mark_fails);
     tcase_add_test(tc_init, test_watch_free);
     suite_add_tcase(s, tc_init);

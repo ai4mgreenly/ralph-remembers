@@ -4,6 +4,7 @@
 
 #include "wrapper_posix.h"
 
+#include <fcntl.h>
 #include <inttypes.h>
 #include <poll.h>
 #include <sys/fanotify.h>
@@ -21,6 +22,11 @@ MOCKABLE int32_t posix_fanotify_mark_(int32_t fanotify_fd,
                                       const char *pathname)
 {
     return (int32_t)fanotify_mark((int)fanotify_fd, flags, mask, (int)dirfd, pathname);
+}
+
+MOCKABLE int32_t posix_open_(const char *pathname, int32_t flags)
+{
+    return (int32_t)open(pathname, (int)flags);
 }
 
 MOCKABLE int32_t posix_close_(int32_t fd)
