@@ -1,8 +1,20 @@
 #include "config/config.h"
 #include "log/log.h"
 
+#include <signal.h>
 #include <stdio.h>
 #include <talloc.h>
+#include <unistd.h>
+
+volatile sig_atomic_t g_shutdown = 0;
+
+void handle_signal(int signum);
+
+void handle_signal(int signum)
+{
+    (void)signum;
+    g_shutdown = 1;
+}
 
 int main(int argc, char **argv)
 {
@@ -40,6 +52,18 @@ int main(int argc, char **argv)
     fx_log_info(log, "db_path=%s", cfg->db_path);
     fx_log_info(log, "socket_path=%s", cfg->socket_path);
     fx_log_info(log, "log_level=%s", level_names[cfg->log_level]);
+
+    struct sigaction sa = {0};
+    sa.sa_handler = handle_signal;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+
+    fx_log_info(log, "entering main loop");
+    while (!g_shutdown) {
+        usleep(100000);
+    }
+    fx_log_info(log, "received shutdown signal");
 
     fx_log_info(log, "fandex stopping");
 
