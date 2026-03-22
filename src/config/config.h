@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <talloc.h>
 
-#include "result.h"
+#include "error.h"
 
 typedef struct fx_cfg {
     char *watch_path;

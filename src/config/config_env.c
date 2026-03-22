@@ -1,7 +1,5 @@
 #include "config/config_env.h"
 #include "config/defaults.h"
-#include "result.h"
-
 #include <talloc.h>
 
 #include <stdio.h>

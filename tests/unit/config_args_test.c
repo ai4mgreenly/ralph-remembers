@@ -1,8 +1,6 @@
 #include "config/config_args.h"
 #include "config/config_env.h"
 #include "config/config.h"
-#include "result.h"
-
 #include <talloc.h>
 
 #include <check.h>

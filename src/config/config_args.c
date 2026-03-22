@@ -1,6 +1,4 @@
 #include "config/config_args.h"
-#include "result.h"
-
 #include <talloc.h>
 
 #include <stdio.h>
@@ -21,7 +19,7 @@ res_t fx_cfg_args_apply(fx_cfg_t *cfg, int argc, const char **argv)
         if (strcmp(arg, "--watch") == 0 || strcmp(arg, "--db") == 0 ||
             strcmp(arg, "--socket") == 0) {
             if (i + 1 >= argc) {
-                return ERR(cfg, ERR_INVALID_ARG, "fandex: %s requires a value", arg);
+                return ERR(cfg, INVALID_ARG, "fandex: %s requires a value", arg);
             }
             const char *val = argv[++i];
             char *dup = talloc_strdup(cfg, val);
@@ -42,7 +40,7 @@ res_t fx_cfg_args_apply(fx_cfg_t *cfg, int argc, const char **argv)
             continue;
         }
 
-        return ERR(cfg, ERR_INVALID_ARG, "fandex: unknown flag: %s", arg);
+        return ERR(cfg, INVALID_ARG, "fandex: unknown flag: %s", arg);
     }
 
     return OK(NULL);

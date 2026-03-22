@@ -1,5 +1,5 @@
-#ifndef IK_ERROR_H
-#define IK_ERROR_H
+#ifndef FX_ERROR_H
+#define FX_ERROR_H
 
 #include <assert.h>
 #include <inttypes.h>
@@ -10,7 +10,6 @@
 #include <string.h>
 #include <stdarg.h>
 #include <talloc.h>
-#include "shared/wrapper_stdlib.h"
 
 // Error codes - start empty, add as needed during Phase 1
 typedef enum {
@@ -83,8 +82,8 @@ void *talloc_zero_for_error(TALLOC_CTX *ctx, size_t size);
 
 // Forward declaration of PANIC (defined in panic.h)
 // Source files using error.h should include panic.h to get the implementation
-#define PANIC(msg) ik_panic_impl((msg), __FILE__, __LINE__)
-void ik_panic_impl(const char *msg, const char *file, int line) __attribute__((noreturn));
+#define PANIC(msg) fx_panic_impl((msg), __FILE__, __LINE__)
+void fx_panic_impl(const char *msg, const char *file, int line) __attribute__((noreturn));
 
 // Error creation - allocates on talloc context
 static inline err_t *_make_error(TALLOC_CTX *ctx,
@@ -96,21 +95,21 @@ static inline err_t *_make_error(TALLOC_CTX *ctx,
 {
     assert(ctx != NULL); // LCOV_EXCL_BR_LINE
     assert(fmt != NULL); // LCOV_EXCL_BR_LINE
-    err_t *err = talloc_zero_for_error(ctx, sizeof(err_t));
-    if (err == NULL) PANIC("Out of memory"); // LCOV_EXCL_BR_LINE
+    err_t *e = talloc_zero_for_error(ctx, sizeof(err_t));
+    if (e == NULL) PANIC("Out of memory"); // LCOV_EXCL_BR_LINE
 
-    err->code = code;
-    err->file = file;
-    err->line = line;
+    e->code = code;
+    e->file = file;
+    e->line = line;
 
     va_list args;
     va_start(args, fmt);
-    int32_t written = vsnprintf_(err->msg, sizeof(err->msg), fmt, args);
+    int32_t written = (int32_t)vsnprintf(e->msg, sizeof(e->msg), fmt, args);
     va_end(args);
     if (written < 0) PANIC("vsnprintf failed in error message formatting");  // LCOV_EXCL_BR_LINE - vsnprintf failure in error creation can't be tested without circular dependency
     // Note: vsnprintf truncates gracefully if message exceeds buffer size
 
-    return err;
+    return e;
 }
 
 // Clean public API - Rust-style OK/ERR
@@ -173,24 +172,24 @@ static inline const char *error_code_str(err_code_t code)
 }
 
 // Error inspection
-static inline err_code_t error_code(const err_t *err)
+static inline err_code_t error_code(const err_t *e)
 {
-    assert(err != NULL); // LCOV_EXCL_BR_LINE
-    return err->code;
+    assert(e != NULL); // LCOV_EXCL_BR_LINE
+    return e->code;
 }
 
-static inline const char *error_message(const err_t *err)
+static inline const char *error_message(const err_t *e)
 {
-    assert(err != NULL); // LCOV_EXCL_BR_LINE
-    return err->msg[0] ? err->msg : error_code_str(err->code);
+    assert(e != NULL); // LCOV_EXCL_BR_LINE
+    return e->msg[0] ? e->msg : error_code_str(e->code);
 }
 
 // Error formatting for debugging
-static inline void error_fprintf(FILE *f, const err_t *err)
+static inline void error_fprintf(FILE *f, const err_t *e)
 {
     assert(f != NULL); // LCOV_EXCL_BR_LINE
-    assert(err != NULL); // LCOV_EXCL_BR_LINE
-    fprintf(f, "Error: %s [%s:%" PRId32 "]\n", error_message(err), err->file ? err->file : "unknown", err->line);
+    assert(e != NULL); // LCOV_EXCL_BR_LINE
+    fprintf(f, "Error: %s [%s:%" PRId32 "]\n", error_message(e), e->file ? e->file : "unknown", e->line);
 }
 
-#endif // IK_ERROR_H
+#endif // FX_ERROR_H

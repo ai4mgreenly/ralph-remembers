@@ -1,8 +1,6 @@
 #include "config/config.h"
 #include "config/config_env.h"
 #include "config/config_args.h"
-#include "result.h"
-
 #include <talloc.h>
 
 #include "poison.h"

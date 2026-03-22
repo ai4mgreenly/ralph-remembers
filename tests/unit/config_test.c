@@ -1,6 +1,4 @@
 #include "config/config.h"
-#include "result.h"
-
 #include <talloc.h>
 
 #include <check.h>
